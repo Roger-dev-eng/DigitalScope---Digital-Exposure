@@ -1,6 +1,7 @@
 from typing import Any, Callable
 
 from fastapi import FastAPI, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 
 from app.breach_service import lookup_breaches
@@ -62,6 +63,100 @@ def evaluate_exposure(breaches: list[dict[str, Any]]) -> tuple[list[dict[str, st
 def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = None) -> FastAPI:
     provider = breach_provider or (lambda email: lookup_breaches(email))
     app = FastAPI(title="DigitalScope API", version="0.1.0")
+
+    @app.get("/", response_class=HTMLResponse)
+    def dashboard_home() -> str:
+        return """
+        <!DOCTYPE html>
+        <html lang=\"pt-BR\">
+        <head>
+            <meta charset=\"utf-8\" />
+            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+            <title>Digital Exposure</title>
+            <style>
+                body {
+                    background: #0f172a;
+                    color: #e2e8f0;
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 40px 20px;
+                }
+                .container {
+                    max-width: 760px;
+                    margin: 0 auto;
+                    background: #111827;
+                    border: 1px solid #334155;
+                    border-radius: 16px;
+                    padding: 32px;
+                    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.4);
+                }
+                h1 {
+                    margin-top: 0;
+                    font-size: 2.2rem;
+                }
+                p {
+                    color: #cbd5e1;
+                    line-height: 1.6;
+                }
+                form {
+                    display: flex;
+                    gap: 12px;
+                    margin-top: 20px;
+                    flex-wrap: wrap;
+                }
+                input {
+                    flex: 1 1 300px;
+                    min-height: 46px;
+                    border-radius: 10px;
+                    border: 1px solid #475569;
+                    background: #0f172a;
+                    color: #f8fafc;
+                    padding: 0 12px;
+                    font-size: 1rem;
+                }
+                button {
+                    min-height: 46px;
+                    border: none;
+                    border-radius: 10px;
+                    background: #2563eb;
+                    color: white;
+                    font-weight: 700;
+                    padding: 0 20px;
+                    cursor: pointer;
+                }
+                .card {
+                    margin-top: 24px;
+                    background: #1e293b;
+                    border-radius: 12px;
+                    border: 1px solid #334155;
+                    padding: 18px 20px;
+                }
+                .label {
+                    color: #93c5fd;
+                    font-size: 0.8rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.08em;
+                }
+            </style>
+        </head>
+        <body>
+            <div class=\"container\">
+                <h1>Digital Exposure</h1>
+                <p>Analise um e-mail para verificar sinais de exposição pública e vazamentos conhecidos.</p>
+
+                <form action=\"/api/exposure\" method=\"get\">
+                    <input type=\"email\" name=\"email\" placeholder=\"Digite seu e-mail\" required />
+                    <button type=\"submit\">Analisar</button>
+                </form>
+
+                <div class=\"card\">
+                    <div class=\"label\">Resumo</div>
+                    <p>Breaches: 0<br />Dados expostos: nenhum<br />Severidade: baixa</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
 
     @app.get("/api/exposure", response_model=ExposureResponse)
     def get_exposure(

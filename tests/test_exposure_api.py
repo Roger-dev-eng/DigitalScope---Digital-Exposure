@@ -71,3 +71,12 @@ def test_provider_breaches_generate_alert_and_recommendation():
     assert payload["summary"]["severity"] == "medium"
     assert payload["alerts"][0]["type"] == "credential_compromise"
     assert any("Alterar senhas afetadas" in item for item in payload["recommendations"])
+
+
+def test_dashboard_home_page_is_served():
+    client = TestClient(create_app())
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Digital Exposure" in response.text
+    assert "Analisar" in response.text

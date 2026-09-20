@@ -110,7 +110,7 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                                         </div>
                                         <div class="stat-card">
                                             <span class="stat-label">Severidade</span>
-                                            <span class="stat-value" id="severity">Baixa</span>
+                                                <span class="stat-value" id="severity">Baixa</span>
                                         </div>
                                     </div>
                                 </div>
@@ -501,7 +501,12 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
 
                         const payload = await response.json();
                         document.getElementById("breach-count").textContent = payload.summary.breach_count;
-                        document.getElementById("severity").textContent = payload.summary.severity;
+                        const severityLabels = {
+                            low: "Baixa",
+                            medium: "Média",
+                            high: "Alta",
+                        };
+                        document.getElementById("severity").textContent = severityLabels[payload.summary.severity] || payload.summary.severity;
                         document.getElementById("exposed-count").textContent = payload.summary.exposed_data_types.length;
                         document.getElementById("alert-count").textContent = payload.alerts.length;
                         document.getElementById("account-count").textContent = payload.breaches.length;
@@ -549,7 +554,8 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                                 const dataClasses = breach.data_classes.length
                                     ? breach.data_classes.join(", ")
                                     : "Tipos de dados não informados";
-                                metadata.textContent = `${date} | Dados: ${dataClasses}`;
+                                const source = breach.source || "Fonte não informada";
+                                metadata.textContent = `${date} | Dados: ${dataClasses} | Fonte: ${source}`;
 
                                 item.append(name, metadata);
                                 breachesList.appendChild(item);

@@ -68,93 +68,343 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
     def dashboard_home() -> str:
         return """
         <!DOCTYPE html>
-        <html lang=\"pt-BR\">
+        <html lang="pt-BR">
         <head>
-            <meta charset=\"utf-8\" />
-            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>Digital Exposure</title>
+            <body>
+                <div class="shell">
+                    <div class="page">
+                        <header class="header">
+                            <div class="brand-row">
+                                <div class="brand">
+                                    <div>
+                                        <p class="eyebrow">DigitalScope</p>
+                                        <h1>Digital Exposure</h1>
+                                    </div>
+                                </div>
+                            </div>
+                        </header>
+
+                        <main class="content">
+                            <section class="hero">
+                                <div class="panel query-panel">
+                                    <h2>Consulta</h2>
+                                    <p>Analise um e-mail para verificar sinais de exposição pública e vazamentos conhecidos.</p>
+                                    <form id="exposure-form">
+                                        <div class="input-row">
+                                            <input class="atom-input" type="email" name="email" placeholder="Digite seu e-mail" required />
+                                            <button class="atom-button" type="submit">Analisar</button>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div class="panel results" id="results" aria-live="polite">
+                                    <h2>Resumo</h2>
+                                    <div class="stats-grid">
+                                        <div class="stat-card">
+                                            <span class="stat-label">Breaches</span>
+                                            <span class="stat-value" id="breach-count">0</span>
+                                        </div>
+                                        <div class="stat-card">
+                                            <span class="stat-label">Severidade</span>
+                                            <span class="stat-value" id="severity">Baixa</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="meta-grid" id="metrics" aria-live="polite">
+                                <div class="metric-box">
+                                    <span class="stat-label">Dados expostos</span>
+                                    <strong id="exposed-count">0</strong>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="stat-label">Alertas</span>
+                                    <strong id="alert-count">0</strong>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="stat-label">Contas</span>
+                                    <strong id="account-count">0</strong>
+                                </div>
+                            </section>
+
+                            <p class="footer-note">A plataforma prioriza evidências, explicação e minimização de dados. Nenhuma senha será solicitada e os resultados são interpretados com cuidado.</p>
+                        </main>
+                    </div>
+                </div>
+            </body>
+
             <style>
+                :root {
+                    --bg: #cf792d;
+                    --panel: #e8e2d1;
+                    --panel-strong: #f1eadc;
+                    --panel-soft: #d6ccb3;
+                    --stone-deep: #7a765e;
+                    --ink: #2a261d;
+                    --ink-soft: #4f4a3e;
+                    --accent: #b7652b;
+                    --warning: #8d5b2a;
+                    --shadow: rgba(58, 46, 33, 0.18);
+                }
+
                 body {
-                    background: #0f172a;
-                    color: #e2e8f0;
-                    font-family: Arial, sans-serif;
                     margin: 0;
-                    padding: 40px 20px;
+                    min-height: 100vh;
+                    font-family: Arial, Helvetica, sans-serif;
+                    background: linear-gradient(180deg, var(--bg) 0%, #d98a41 100%);
+                    color: var(--ink);
                 }
-                .container {
-                    max-width: 760px;
+
+                .shell {
+                    max-width: 1160px;
                     margin: 0 auto;
-                    background: #111827;
-                    border: 1px solid #334155;
-                    border-radius: 16px;
-                    padding: 32px;
-                    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.4);
+                    padding: 52px 20px 80px;
                 }
-                h1 {
-                    margin-top: 0;
-                    font-size: 2.2rem;
+
+                .page {
+                    background: rgba(232, 226, 209, 0.98);
+                    border: 1px solid rgba(122, 118, 94, 0.3);
+                    border-radius: 28px;
+                    box-shadow: 0 24px 60px var(--shadow);
+                    overflow: hidden;
                 }
-                p {
-                    color: #cbd5e1;
-                    line-height: 1.6;
+
+                .header {
+                    background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+                    border-bottom: 1px solid rgba(122, 118, 94, 0.35);
+                    padding: 36px 42px 30px;
                 }
-                form {
+
+                .brand-row {
                     display: flex;
-                    gap: 12px;
-                    margin-top: 20px;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 18px;
                     flex-wrap: wrap;
                 }
-                input {
-                    flex: 1 1 300px;
-                    min-height: 46px;
-                    border-radius: 10px;
-                    border: 1px solid #475569;
-                    background: #0f172a;
-                    color: #f8fafc;
-                    padding: 0 12px;
-                    font-size: 1rem;
+
+                .brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
                 }
-                button {
-                    min-height: 46px;
-                    border: none;
-                    border-radius: 10px;
-                    background: #2563eb;
-                    color: white;
-                    font-weight: 700;
-                    padding: 0 20px;
-                    cursor: pointer;
-                }
-                .card {
-                    margin-top: 24px;
-                    background: #1e293b;
+
+                .logo {
+                    width: 44px;
+                    height: 44px;
                     border-radius: 12px;
-                    border: 1px solid #334155;
-                    padding: 18px 20px;
+                    background: linear-gradient(135deg, var(--accent), var(--stone-deep));
+                    box-shadow: inset 0 0 0 2px rgba(255,255,255,.25);
+                    display: grid;
+                    place-items: center;
+                    color: #fff;
+                    font-size: 1.2rem;
+                    font-weight: 700;
                 }
-                .label {
-                    color: #93c5fd;
-                    font-size: 0.8rem;
+
+                .eyebrow {
+                    margin: 0;
+                    color: var(--stone-deep);
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    letter-spacing: 0.14em;
                     text-transform: uppercase;
-                    letter-spacing: 0.08em;
+                }
+
+                h1 {
+                    margin: 8px 0 0;
+                    font-size: clamp(2.1rem, 4vw, 3.2rem);
+                    line-height: 1.1;
+                    letter-spacing: -0.04em;
+                }
+
+                .status-pill {
+                    border: 1px solid rgba(122, 118, 94, 0.45);
+                    border-radius: 999px;
+                    padding: 10px 16px;
+                    background: rgba(161, 156, 127, 0.14);
+                    color: var(--ink-soft);
+                    font-size: 0.8rem;
+                    font-weight: 700;
+                    letter-spacing: 0.06em;
+                    text-transform: uppercase;
+                }
+
+                .content {
+                    padding: 32px 42px 42px;
+                }
+
+                .hero {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 20px;
+                }
+
+                .panel {
+                    background: rgba(255,255,255,0.12);
+                    border: 1px solid rgba(122, 118, 94, 0.28);
+                    border-radius: 20px;
+                    padding: 22px;
+                }
+
+                .query-panel,
+                .hero > .results {
+                    width: 100%;
+                    max-width: 760px;
+                }
+
+                .results {
+                    display: none;
+                }
+
+                .results.is-visible {
+                    display: block;
+                }
+
+                .panel h2 {
+                    margin: 0 0 12px;
+                    font-size: 0.96rem;
+                    letter-spacing: 0.12em;
+                    text-transform: uppercase;
+                    color: var(--stone-deep);
+                }
+
+                .input-row {
+                    display: flex;
+                    gap: 12px;
+                    flex-wrap: wrap;
+                    margin-top: 16px;
+                }
+
+                .atom-input {
+                    flex: 1 1 320px;
+                    height: 54px;
+                    border-radius: 14px;
+                    border: 1px solid rgba(122, 118, 94, 0.6);
+                    background: #f5f0e6;
+                    color: var(--ink);
+                    font-size: 1rem;
+                    padding: 0 16px;
+                    outline: none;
+                }
+
+                .atom-input:focus {
+                    border-color: var(--accent);
+                    box-shadow: 0 0 0 3px rgba(207, 121, 45, 0.18);
+                }
+
+                .atom-button {
+                    border: none;
+                    border-radius: 14px;
+                    height: 54px;
+                    padding: 0 22px;
+                    background: linear-gradient(135deg, var(--accent), var(--warning));
+                    color: #fff;
+                    font-size: 0.95rem;
+                    font-weight: 700;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    cursor: pointer;
+                    box-shadow: 0 12px 24px rgba(98, 61, 31, 0.18);
+                }
+
+                .stats-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 14px;
+                    margin-top: 22px;
+                }
+
+                .stat-card {
+                    background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(161,156,127,0.12));
+                    border: 1px solid rgba(122, 118, 94, 0.25);
+                    border-radius: 16px;
+                    padding: 18px 16px;
+                }
+
+                .stat-label {
+                    display: block;
+                    color: var(--stone-deep);
+                    font-size: 0.72rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.09em;
+                    margin-bottom: 8px;
+                }
+
+                .stat-value {
+                    display: block;
+                    font-size: 2rem;
+                    font-weight: 700;
+                    line-height: 1;
+                }
+
+                .meta-grid {
+                    display: grid;
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    gap: 16px;
+                    margin-top: 24px;
+                }
+
+                .metric-box {
+                    background: var(--panel-soft);
+                    border: 1px solid rgba(122, 118, 94, 0.25);
+                    border-radius: 16px;
+                    padding: 18px;
+                }
+
+                .metric-box strong {
+                    display: block;
+                    font-size: 1.65rem;
+                    margin-top: 8px;
+                }
+
+                .footer-note {
+                    margin-top: 22px;
+                    color: var(--ink-soft);
+                    font-size: 0.9rem;
+                    line-height: 1.6;
+                }
+
+                @media (max-width: 760px) {
+                    .hero,
+                    .meta-grid {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .header,
+                    .content {
+                        padding-left: 20px;
+                        padding-right: 20px;
+                    }
                 }
             </style>
+            <script>
+                const form = document.getElementById("exposure-form");
+                const results = document.querySelectorAll(".results");
+
+                form.addEventListener("submit", async (event) => {
+                    event.preventDefault();
+                    const email = new FormData(form).get("email");
+                    const response = await fetch(`/api/exposure?email=${encodeURIComponent(email)}`);
+
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    document.getElementById("breach-count").textContent = payload.summary.breach_count;
+                    document.getElementById("severity").textContent = payload.summary.severity;
+                    document.getElementById("exposed-count").textContent = payload.summary.exposed_data_types.length;
+                    document.getElementById("alert-count").textContent = payload.alerts.length;
+                    document.getElementById("account-count").textContent = payload.breaches.length;
+                    results.forEach((element) => element.classList.add("is-visible"));
+                });
+            </script>
         </head>
-        <body>
-            <div class=\"container\">
-                <h1>Digital Exposure</h1>
-                <p>Analise um e-mail para verificar sinais de exposição pública e vazamentos conhecidos.</p>
-
-                <form action=\"/api/exposure\" method=\"get\">
-                    <input type=\"email\" name=\"email\" placeholder=\"Digite seu e-mail\" required />
-                    <button type=\"submit\">Analisar</button>
-                </form>
-
-                <div class=\"card\">
-                    <div class=\"label\">Resumo</div>
-                    <p>Breaches: 0<br />Dados expostos: nenhum<br />Severidade: baixa</p>
-                </div>
-            </div>
-        </body>
         </html>
         """
 

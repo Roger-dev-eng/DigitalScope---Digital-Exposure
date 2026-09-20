@@ -80,3 +80,6 @@ def test_dashboard_home_page_is_served():
     assert response.status_code == 200
     assert "Digital Exposure" in response.text
     assert "Analisar" in response.text
+    assert "Privacidade por design" not in response.text
+    assert 'class="logo"' not in response.text
+    assert 'class="results is-visible"' not in response.text

@@ -496,7 +496,8 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                         const response = await fetch(`/api/exposure?email=${encodeURIComponent(email)}`);
 
                         if (!response.ok) {
-                            throw new Error("Não foi possível concluir a consulta.");
+                            const errorPayload = await response.json().catch(() => ({}));
+                            throw new Error(errorPayload.detail || "Não foi possível concluir a consulta.");
                         }
 
                         const payload = await response.json();

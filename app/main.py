@@ -3,6 +3,8 @@ from typing import Any
 from fastapi import FastAPI, Query
 from pydantic import BaseModel, EmailStr
 
+from app.breach_service import lookup_breaches
+
 
 class Breach(BaseModel):
     name: str
@@ -30,13 +32,34 @@ def create_app() -> FastAPI:
     def get_exposure(
         email: EmailStr = Query(..., description="User email to analyze")
     ) -> dict[str, Any]:
+        breaches = lookup_breaches(str(email))
+        all_data_classes = [
+            item
+            for breach in breaches
+            for item in breach["data_classes"]
+        ]
+        unique_data_types = sorted(set(all_data_classes))
+        severity = "low"
+        if len(breaches) >= 3:
+            severity = "high"
+        elif len(breaches) >= 1:
+            severity = "medium"
+
         return {
             "email": email,
-            "breaches": [],
+            "breaches": [
+                Breach(
+                    name=breach["name"],
+                    date=breach.get("date"),
+                    data_classes=breach.get("data_classes", []),
+                    source=breach.get("source", "unknown"),
+                )
+                for breach in breaches
+            ],
             "summary": {
-                "breach_count": 0,
-                "severity": "low",
-                "exposed_data_types": [],
+                "breach_count": len(breaches),
+                "severity": severity,
+                "exposed_data_types": unique_data_types,
             },
         }
 

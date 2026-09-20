@@ -7,7 +7,7 @@ from app.breach_service import (
     normalize_breach,
     normalize_data_classes,
 )
-from app.main import calculate_severity, create_app
+from app.main import calculate_severity, create_app, evaluate_exposure
 
 
 def test_valid_email_returns_empty_exposure_summary(monkeypatch):
@@ -85,7 +85,7 @@ def test_xposedornot_provider_is_normalized_without_network(monkeypatch):
 
     assert BreachService().lookup("user@example.com") == [{
         "name": "ExampleBreach",
-        "date": "2024–2024",
+        "date": "2024",
         "data_classes": ["Email addresses"],
         "source": "XposedOrNot",
     }]
@@ -197,6 +197,26 @@ def test_calculate_severity_raises_multiple_incidents_to_medium():
     breaches = [{"data_classes": ["Email"]}] * 3
 
     assert calculate_severity(breaches) == "medium"
+
+
+def test_exposure_guidance_changes_with_incident_count():
+    one_alert, one_recommendations = evaluate_exposure([{"data_classes": ["Email"]}])
+    many_alerts, many_recommendations = evaluate_exposure(
+        [{"data_classes": ["Email"]}] * 145
+    )
+
+    assert one_alert == []
+    assert "Continuar monitorando este e-mail para novos vazamentos" in one_recommendations
+    assert any(alert["type"] == "repeated_exposure" for alert in many_alerts)
+    assert "Revisar todas as contas associadas a este e-mail" in many_recommendations
+    assert "Ativar monitoramento para novos incidentes" in many_recommendations
+
+
+def test_exposure_guidance_adds_personal_data_alert():
+    alerts, recommendations = evaluate_exposure([{"data_classes": ["Phone number"]}])
+
+    assert alerts[0]["type"] == "personal_data_exposure"
+    assert "Revisar dados pessoais armazenados nas contas afetadas" in recommendations
 
 
 def test_dashboard_home_page_is_served():

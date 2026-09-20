@@ -41,6 +41,15 @@ class ExposureResponse(BaseModel):
 def evaluate_exposure(breaches: list[dict[str, Any]]) -> tuple[list[dict[str, str | list[str]]], list[str]]:
     alerts: list[dict[str, str | list[str]]] = []
     recommendations: list[str] = []
+    data_classes = {
+        item.lower()
+        for breach in breaches
+        for item in breach.get("data_classes", [])
+    }
+
+    def recommend(message: str) -> None:
+        if message not in recommendations:
+            recommendations.append(message)
 
     password_compromised = any(
         any("password" in item.lower() for item in breach.get("data_classes", []))
@@ -55,11 +64,37 @@ def evaluate_exposure(breaches: list[dict[str, Any]]) -> tuple[list[dict[str, st
                 "A evidência foi obtida a partir dos dados reportados no incidente.",
             ],
         })
-        recommendations.append("Alterar senhas afetadas")
-        recommendations.append("Ativar MFA para contas prioritárias")
+        recommend("Alterar senhas afetadas")
+        recommend("Ativar MFA para contas prioritárias")
+
+    personal_data_terms = ("phone", "address", "date of birth", "financial", "credit card")
+    if any(any(term in item for term in personal_data_terms) for item in data_classes):
+        alerts.append({
+            "type": "personal_data_exposure",
+            "message": "Dados pessoais sensíveis aparecem entre as categorias expostas.",
+            "details": [
+                "Revise as contas afetadas e reduza dados pessoais desnecessários nos serviços associados.",
+            ],
+        })
+        recommend("Revisar dados pessoais armazenados nas contas afetadas")
+
+    if len(breaches) >= 10:
+        alerts.append({
+            "type": "repeated_exposure",
+            "message": "O e-mail aparece em vários incidentes conhecidos.",
+            "details": [
+                f"Foram identificados {len(breaches)} incidentes associados a este e-mail.",
+                "A exposição é recorrente e merece uma revisão ampla das contas antigas.",
+            ],
+        })
+        recommend("Revisar todas as contas associadas a este e-mail")
+        recommend("Ativar monitoramento para novos incidentes")
+    elif len(breaches) >= 2:
+        recommend("Revisar as contas associadas a este e-mail")
+        recommend("Continuar monitorando este e-mail")
 
     if not alerts:
-        recommendations.append("Continuar monitorando este e-mail para novos vazamentos")
+        recommend("Continuar monitorando este e-mail para novos vazamentos")
 
     return alerts, recommendations
 

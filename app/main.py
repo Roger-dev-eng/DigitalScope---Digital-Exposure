@@ -113,6 +113,17 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                                         </div>
                                     </div>
                                 </div>
+
+                                <div class="panel results details-panel" aria-live="polite">
+                                    <div class="details-column">
+                                        <h2>Alertas</h2>
+                                        <ul class="details-list" id="alerts-list"></ul>
+                                    </div>
+                                    <div class="details-column">
+                                        <h2>Recomendações</h2>
+                                        <ul class="details-list" id="recommendations-list"></ul>
+                                    </div>
+                                </div>
                             </section>
 
                             <section class="meta-grid" id="metrics" aria-live="polite">
@@ -257,6 +268,35 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                     max-width: 760px;
                 }
 
+                .details-panel {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 22px;
+                }
+
+                .details-panel.results {
+                    display: none;
+                }
+
+                .details-panel.results.is-visible {
+                    display: grid;
+                }
+
+                .details-list {
+                    display: grid;
+                    gap: 10px;
+                    margin: 0;
+                    padding: 0;
+                    list-style: none;
+                }
+
+                .details-list li {
+                    border-left: 3px solid var(--accent);
+                    color: var(--ink-soft);
+                    line-height: 1.45;
+                    padding-left: 12px;
+                }
+
                 .results {
                     display: none;
                 }
@@ -370,8 +410,11 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                 }
 
                 @media (max-width: 760px) {
-                    .hero,
                     .meta-grid {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .details-panel {
                         grid-template-columns: 1fr;
                     }
 
@@ -401,6 +444,27 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                     document.getElementById("exposed-count").textContent = payload.summary.exposed_data_types.length;
                     document.getElementById("alert-count").textContent = payload.alerts.length;
                     document.getElementById("account-count").textContent = payload.breaches.length;
+
+                    const renderList = (elementId, items, emptyMessage) => {
+                        const list = document.getElementById(elementId);
+                        list.replaceChildren();
+                        (items.length ? items : [emptyMessage]).forEach((item) => {
+                            const listItem = document.createElement("li");
+                            listItem.textContent = item;
+                            list.appendChild(listItem);
+                        });
+                    };
+
+                    renderList(
+                        "alerts-list",
+                        payload.alerts.map((alert) => alert.message),
+                        "Nenhum alerta identificado."
+                    );
+                    renderList(
+                        "recommendations-list",
+                        payload.recommendations,
+                        "Nenhuma recomendação disponível."
+                    );
                     results.forEach((element) => element.classList.add("is-visible"));
                 });
             </script>

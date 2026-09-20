@@ -95,8 +95,9 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                                     <form id="exposure-form">
                                         <div class="input-row">
                                             <input class="atom-input" type="email" name="email" placeholder="Digite seu e-mail" required />
-                                            <button class="atom-button" type="submit">Analisar</button>
+                                            <button class="atom-button" id="analyze-button" type="submit">Analisar</button>
                                         </div>
+                                        <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
                                     </form>
                                 </div>
 
@@ -388,6 +389,22 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                     box-shadow: 0 12px 24px rgba(98, 61, 31, 0.18);
                 }
 
+                .atom-button:disabled {
+                    cursor: wait;
+                    opacity: 0.65;
+                }
+
+                .form-status {
+                    min-height: 1.4em;
+                    margin: 10px 0 0;
+                    color: var(--ink-soft);
+                    font-size: 0.88rem;
+                }
+
+                .form-status.error {
+                    color: var(--warning);
+                }
+
                 .stats-grid {
                     display: grid;
                     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -463,74 +480,90 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
             </style>
             <script>
                 const form = document.getElementById("exposure-form");
+                const analyzeButton = document.getElementById("analyze-button");
+                const formStatus = document.getElementById("form-status");
                 const results = document.querySelectorAll(".results");
 
                 form.addEventListener("submit", async (event) => {
                     event.preventDefault();
                     const email = new FormData(form).get("email");
-                    const response = await fetch(`/api/exposure?email=${encodeURIComponent(email)}`);
+                    analyzeButton.disabled = true;
+                    analyzeButton.textContent = "Analisando...";
+                    formStatus.className = "form-status";
+                    formStatus.textContent = "Consultando evidências...";
 
-                    if (!response.ok) {
-                        return;
+                    try {
+                        const response = await fetch(`/api/exposure?email=${encodeURIComponent(email)}`);
+
+                        if (!response.ok) {
+                            throw new Error("Não foi possível concluir a consulta.");
+                        }
+
+                        const payload = await response.json();
+                        document.getElementById("breach-count").textContent = payload.summary.breach_count;
+                        document.getElementById("severity").textContent = payload.summary.severity;
+                        document.getElementById("exposed-count").textContent = payload.summary.exposed_data_types.length;
+                        document.getElementById("alert-count").textContent = payload.alerts.length;
+                        document.getElementById("account-count").textContent = payload.breaches.length;
+
+                        const renderList = (elementId, items, emptyMessage) => {
+                            const list = document.getElementById(elementId);
+                            list.replaceChildren();
+                            (items.length ? items : [emptyMessage]).forEach((item) => {
+                                const listItem = document.createElement("li");
+                                listItem.textContent = item;
+                                list.appendChild(listItem);
+                            });
+                        };
+
+                        renderList(
+                            "alerts-list",
+                            payload.alerts.map((alert) => alert.message),
+                            "Nenhum alerta identificado."
+                        );
+                        renderList(
+                            "recommendations-list",
+                            payload.recommendations,
+                            "Nenhuma recomendação disponível."
+                        );
+
+                        const breachesList = document.getElementById("breaches-list");
+                        breachesList.replaceChildren();
+                        if (payload.breaches.length === 0) {
+                            const emptyState = document.createElement("p");
+                            emptyState.className = "breach-meta";
+                            emptyState.textContent = "Nenhuma brecha conhecida foi associada a este e-mail.";
+                            breachesList.appendChild(emptyState);
+                        } else {
+                            payload.breaches.forEach((breach) => {
+                                const item = document.createElement("article");
+                                item.className = "breach-item";
+
+                                const name = document.createElement("strong");
+                                name.className = "breach-name";
+                                name.textContent = breach.name;
+
+                                const metadata = document.createElement("p");
+                                metadata.className = "breach-meta";
+                                const date = breach.date || "Data não informada";
+                                const dataClasses = breach.data_classes.length
+                                    ? breach.data_classes.join(", ")
+                                    : "Tipos de dados não informados";
+                                metadata.textContent = `${date} | Dados: ${dataClasses}`;
+
+                                item.append(name, metadata);
+                                breachesList.appendChild(item);
+                            });
+                        }
+                        results.forEach((element) => element.classList.add("is-visible"));
+                        formStatus.textContent = "Consulta concluída.";
+                    } catch (error) {
+                        formStatus.className = "form-status error";
+                        formStatus.textContent = error.message;
+                    } finally {
+                        analyzeButton.disabled = false;
+                        analyzeButton.textContent = "Analisar";
                     }
-
-                    const payload = await response.json();
-                    document.getElementById("breach-count").textContent = payload.summary.breach_count;
-                    document.getElementById("severity").textContent = payload.summary.severity;
-                    document.getElementById("exposed-count").textContent = payload.summary.exposed_data_types.length;
-                    document.getElementById("alert-count").textContent = payload.alerts.length;
-                    document.getElementById("account-count").textContent = payload.breaches.length;
-
-                    const renderList = (elementId, items, emptyMessage) => {
-                        const list = document.getElementById(elementId);
-                        list.replaceChildren();
-                        (items.length ? items : [emptyMessage]).forEach((item) => {
-                            const listItem = document.createElement("li");
-                            listItem.textContent = item;
-                            list.appendChild(listItem);
-                        });
-                    };
-
-                    renderList(
-                        "alerts-list",
-                        payload.alerts.map((alert) => alert.message),
-                        "Nenhum alerta identificado."
-                    );
-                    renderList(
-                        "recommendations-list",
-                        payload.recommendations,
-                        "Nenhuma recomendação disponível."
-                    );
-
-                    const breachesList = document.getElementById("breaches-list");
-                    breachesList.replaceChildren();
-                    if (payload.breaches.length === 0) {
-                        const emptyState = document.createElement("p");
-                        emptyState.className = "breach-meta";
-                        emptyState.textContent = "Nenhuma brecha conhecida foi associada a este e-mail.";
-                        breachesList.appendChild(emptyState);
-                    } else {
-                        payload.breaches.forEach((breach) => {
-                            const item = document.createElement("article");
-                            item.className = "breach-item";
-
-                            const name = document.createElement("strong");
-                            name.className = "breach-name";
-                            name.textContent = breach.name;
-
-                            const metadata = document.createElement("p");
-                            metadata.className = "breach-meta";
-                            const date = breach.date || "Data não informada";
-                            const dataClasses = breach.data_classes.length
-                                ? breach.data_classes.join(", ")
-                                : "Tipos de dados não informados";
-                            metadata.textContent = `${date} | Dados: ${dataClasses}`;
-
-                            item.append(name, metadata);
-                            breachesList.appendChild(item);
-                        });
-                    }
-                    results.forEach((element) => element.classList.add("is-visible"));
                 });
             </script>
         </head>

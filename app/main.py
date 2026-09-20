@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 
-from app.breach_service import BreachProviderError, lookup_breaches
+from app.breach_service import BreachProviderError, BreachRateLimitError, lookup_breaches
 
 
 class Breach(BaseModel):
@@ -60,9 +60,45 @@ def evaluate_exposure(breaches: list[dict[str, Any]]) -> tuple[list[dict[str, st
     return alerts, recommendations
 
 
+def calculate_severity(breaches: list[dict[str, Any]]) -> str:
+    """Classify exposure from reported evidence, without inventing a numeric score."""
+    data_classes = {
+        item.lower()
+        for breach in breaches
+        for item in breach.get("data_classes", [])
+    }
+    sensitive_terms = ("password", "credential", "financial", "bank", "credit card")
+    personal_terms = ("phone", "address", "date of birth", "social security")
+
+    if any(any(term in item for term in sensitive_terms) for item in data_classes):
+        return "high"
+    if len(breaches) >= 3 or any(any(term in item for term in personal_terms) for item in data_classes):
+        return "medium"
+    if breaches:
+        return "low"
+    return "low"
+
+
 def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = None) -> FastAPI:
     provider = breach_provider or (lambda email: lookup_breaches(email))
     app = FastAPI(title="DigitalScope API", version="0.1.0")
+
+    @app.middleware("http")
+    async def add_security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'"
+        )
+        return response
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard_home() -> str:
@@ -524,7 +560,10 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
 
                         renderList(
                             "alerts-list",
-                            payload.alerts.map((alert) => alert.message),
+                            payload.alerts.map((alert) => {
+                                const details = alert.details.length ? ` ${alert.details.join(" ")}` : "";
+                                return `${alert.message}${details}`;
+                            }),
                             "Nenhum alerta identificado."
                         );
                         renderList(
@@ -583,6 +622,8 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
     ) -> dict[str, Any]:
         try:
             breaches = provider(str(email))
+        except BreachRateLimitError as error:
+            raise HTTPException(status_code=429, detail=str(error)) from error
         except BreachProviderError as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
         all_data_classes = [
@@ -591,11 +632,7 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
             for item in breach.get("data_classes", [])
         ]
         unique_data_types = sorted(set(all_data_classes))
-        severity = "low"
-        if len(breaches) >= 3:
-            severity = "high"
-        elif len(breaches) >= 1:
-            severity = "medium"
+        severity = calculate_severity(breaches)
 
         alerts, recommendations = evaluate_exposure(breaches)
 

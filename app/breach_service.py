@@ -13,6 +13,10 @@ class BreachProviderError(RuntimeError):
     """Raised when the configured external breach provider cannot be reached."""
 
 
+class BreachRateLimitError(BreachProviderError):
+    """Raised when the external provider rejects a request because of rate limits."""
+
+
 class BreachService:
     def __init__(self, provider: Any | None = None):
         self.provider = provider or self._default_provider
@@ -37,6 +41,9 @@ class BreachService:
 
         if response.status_code == 404:
             return []
+
+        if response.status_code == 429:
+            raise BreachRateLimitError("O limite de consultas do provider foi atingido. Tente novamente mais tarde.")
 
         try:
             response.raise_for_status()

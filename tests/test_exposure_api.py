@@ -1,7 +1,13 @@
 from fastapi.testclient import TestClient
 
-from app.breach_service import BreachProviderError, BreachService, normalize_breach, normalize_data_classes
-from app.main import create_app
+from app.breach_service import (
+    BreachProviderError,
+    BreachRateLimitError,
+    BreachService,
+    normalize_breach,
+    normalize_data_classes,
+)
+from app.main import calculate_severity, create_app
 
 
 def test_valid_email_returns_empty_exposure_summary():
@@ -91,6 +97,17 @@ def test_provider_failure_returns_bad_gateway():
     assert response.json()["detail"] == "Provider unavailable"
 
 
+def test_provider_rate_limit_returns_too_many_requests():
+    def rate_limited_provider(email: str):
+        raise BreachRateLimitError("Try again later")
+
+    client = TestClient(create_app(breach_provider=rate_limited_provider))
+    response = client.get("/api/exposure?email=user@example.com")
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Try again later"
+
+
 def test_provider_breaches_generate_alert_and_recommendation():
     def fake_provider(email: str):
         assert email == "user@example.com"
@@ -115,9 +132,21 @@ def test_provider_breaches_generate_alert_and_recommendation():
     assert response.status_code == 200
     payload = response.json()
     assert payload["summary"]["breach_count"] == 2
-    assert payload["summary"]["severity"] == "medium"
+    assert payload["summary"]["severity"] == "high"
     assert payload["alerts"][0]["type"] == "credential_compromise"
     assert any("Alterar senhas afetadas" in item for item in payload["recommendations"])
+
+
+def test_calculate_severity_uses_sensitive_data_categories():
+    assert calculate_severity([{"data_classes": ["Phone number"]}]) == "medium"
+    assert calculate_severity([{"data_classes": ["Email"]}]) == "low"
+    assert calculate_severity([{"data_classes": ["Financial information"]}]) == "high"
+
+
+def test_calculate_severity_raises_multiple_incidents_to_medium():
+    breaches = [{"data_classes": ["Email"]}] * 3
+
+    assert calculate_severity(breaches) == "medium"
 
 
 def test_dashboard_home_page_is_served():
@@ -130,3 +159,13 @@ def test_dashboard_home_page_is_served():
     assert "Privacidade por design" not in response.text
     assert 'class="logo"' not in response.text
     assert 'class="results is-visible"' not in response.text
+
+
+def test_responses_include_security_headers():
+    client = TestClient(create_app())
+    response = client.get("/")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]

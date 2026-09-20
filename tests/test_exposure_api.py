@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.breach_service import BreachService, normalize_breach, normalize_data_classes
+from app.breach_service import BreachProviderError, BreachService, normalize_breach, normalize_data_classes
 from app.main import create_app
 
 
@@ -78,6 +78,17 @@ def test_default_provider_stays_local_without_api_key(monkeypatch):
     monkeypatch.delenv("HIBP_API_KEY", raising=False)
 
     assert BreachService().lookup("user@example.com") == []
+
+
+def test_provider_failure_returns_bad_gateway():
+    def failing_provider(email: str):
+        raise BreachProviderError("Provider unavailable")
+
+    client = TestClient(create_app(breach_provider=failing_provider))
+    response = client.get("/api/exposure?email=user@example.com")
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Provider unavailable"
 
 
 def test_provider_breaches_generate_alert_and_recommendation():

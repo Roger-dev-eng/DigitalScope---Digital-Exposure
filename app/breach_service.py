@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+class BreachProviderError(RuntimeError):
+    """Raised when the configured external breach provider cannot be reached."""
+
+
 class BreachService:
     def __init__(self, provider: Any | None = None):
         self.provider = provider or self._default_provider
@@ -18,20 +22,26 @@ class BreachService:
         if not api_key:
             return []
 
-        response = httpx.get(
-            f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}",
-            headers={
-                "hibp-api-key": api_key,
-                "user-agent": "DigitalScope/0.1",
-            },
-            params={"truncateResponse": "false"},
-            timeout=10.0,
-        )
+        try:
+            response = httpx.get(
+                f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}",
+                headers={
+                    "hibp-api-key": api_key,
+                    "user-agent": "DigitalScope/0.1",
+                },
+                params={"truncateResponse": "false"},
+                timeout=10.0,
+            )
+        except httpx.RequestError as error:
+            raise BreachProviderError("O provider de vazamentos não está disponível.") from error
 
         if response.status_code == 404:
             return []
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPError as error:
+            raise BreachProviderError("O provider de vazamentos recusou a consulta.") from error
         return [
             {
                 "name": item.get("Name", "Unknown breach"),

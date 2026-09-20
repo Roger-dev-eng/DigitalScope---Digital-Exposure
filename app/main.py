@@ -1,10 +1,10 @@
 from typing import Any, Callable
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 
-from app.breach_service import lookup_breaches
+from app.breach_service import BreachProviderError, lookup_breaches
 
 
 class Breach(BaseModel):
@@ -580,7 +580,10 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
     def get_exposure(
         email: EmailStr = Query(..., description="User email to analyze")
     ) -> dict[str, Any]:
-        breaches = provider(str(email))
+        try:
+            breaches = provider(str(email))
+        except BreachProviderError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
         all_data_classes = [
             item
             for breach in breaches

@@ -57,6 +57,16 @@ h1 { margin: 8px 0 0; font-size: clamp(2.1rem, 4vw, 3.2rem); line-height: 1.1; l
 .breach-item:first-child { border-top: 0; padding-top: 0; }
 .breach-name { display: block; font-size: 1.05rem; font-weight: 700; }
 .breach-meta { color: var(--ink-soft); font-size: 0.86rem; line-height: 1.5; margin-top: 5px; }
+.breach-meta { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.breach-source, .breach-date { white-space: nowrap; }
+.data-tooltip { position: relative; display: inline-flex; align-items: center; }
+.data-tooltip-trigger { border: 0; border-bottom: 1px dotted var(--stone-deep); background: transparent; color: var(--ink-soft); cursor: help; font: inherit; padding: 0; }
+.data-tooltip-content { visibility: hidden; position: absolute; z-index: 2; bottom: calc(100% + 9px); left: 50%; width: min(300px, 70vw); transform: translateX(-50%); border: 1px solid rgba(122, 118, 94, 0.45); border-radius: 10px; background: var(--ink); color: var(--panel-strong); font-size: 0.78rem; line-height: 1.4; opacity: 0; padding: 10px 12px; pointer-events: none; transition: opacity 140ms ease, visibility 140ms ease; }
+.data-tooltip:hover .data-tooltip-content, .data-tooltip:focus-within .data-tooltip-content { visibility: visible; opacity: 1; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 14px; border-top: 1px solid rgba(122, 118, 94, 0.25); margin-top: 8px; padding-top: 16px; }
+.pagination-button { border: 1px solid rgba(122, 118, 94, 0.5); border-radius: 9px; background: var(--panel-soft); color: var(--ink); cursor: pointer; padding: 8px 12px; }
+.pagination-button:disabled { cursor: not-allowed; opacity: 0.45; }
+.pagination-status { color: var(--ink-soft); font-size: 0.82rem; }
 .results { display: none; }
 .results.is-visible { display: block; }
 .panel h2 { margin: 0 0 12px; font-size: 0.96rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--stone-deep); }

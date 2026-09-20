@@ -30,17 +30,13 @@ class BreachService:
         provider_name = os.getenv("BREACH_PROVIDER", "xposedornot").lower()
         if provider_name == "local":
             return []
-
         if provider_name != "xposedornot":
             raise BreachProviderError("Provider de vazamentos não suportado.")
 
         try:
             response = httpx.get(
                 f"https://api.xposedornot.com/v1/check-email/{email}",
-                headers={
-                    "user-agent": "DigitalScope/0.1",
-                    "accept": "application/json",
-                },
+                headers={"user-agent": "DigitalScope/0.1", "accept": "application/json"},
                 timeout=10.0,
             )
         except httpx.RequestError as error:
@@ -48,33 +44,63 @@ class BreachService:
 
         if response.status_code == 404:
             return []
-
         if response.status_code == 429:
             raise BreachRateLimitError("O limite de consultas do provider foi atingido. Tente novamente mais tarde.")
-
         try:
             response.raise_for_status()
         except httpx.HTTPError as error:
             raise BreachProviderError("O provider de vazamentos recusou a consulta.") from error
+
         payload = response.json()
-        if isinstance(payload, list):
-            raw_breaches = payload
+        raw_names = payload.get("breaches", [])
+        breach_names = raw_names[0] if len(raw_names) == 1 and isinstance(raw_names[0], list) else raw_names
+
+        try:
+            analytics_response = httpx.get(
+                f"https://api.xposedornot.com/v1/breach-analytics?email={email}",
+                headers={"user-agent": "DigitalScope/0.1", "accept": "application/json"},
+                timeout=10.0,
+            )
+            analytics_response.raise_for_status()
+        except httpx.RequestError as error:
+            raise BreachProviderError("O provider de vazamentos não está disponível.") from error
+        except httpx.HTTPError as error:
+            raise BreachProviderError("O provider de vazamentos recusou a consulta.") from error
+
+        metrics = analytics_response.json().get("BreachMetrics", {})
+        data_classes = self._extract_data_classes(metrics.get("xposed_data", []))
+        yearwise_details = metrics.get("yearwise_details", [{}])
+        year_counts = yearwise_details[0] if yearwise_details and isinstance(yearwise_details[0], dict) else {}
+        years = [year.removeprefix("y") for year, count in sorted(year_counts.items()) if count]
+        if not years:
+            reported_period = "Data não informada"
+        elif years[0] == years[-1]:
+            reported_period = years[0]
         else:
-            raw_breaches = payload.get("breaches", [])
-            if isinstance(raw_breaches, dict):
-                raw_breaches = raw_breaches.get("breaches", [])
-        if len(raw_breaches) == 1 and isinstance(raw_breaches[0], list):
-            raw_breaches = raw_breaches[0]
+            reported_period = f"{years[0]}–{years[-1]}"
 
         return [
             {
-                "name": item if isinstance(item, str) else item.get("name", "Unknown breach"),
-                "date": None if isinstance(item, str) else item.get("date"),
-                "data_classes": [] if isinstance(item, str) else item.get("data_classes", []),
+                "name": str(name),
+                "date": reported_period,
+                "data_classes": data_classes,
                 "source": "XposedOrNot",
             }
-            for item in raw_breaches
+            for name in breach_names
         ]
+
+    def _extract_data_classes(self, nodes: list[dict[str, Any]]) -> list[str]:
+        data_classes: list[str] = []
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            name = node.get("name", "")
+            if isinstance(name, str) and name.startswith("data_"):
+                data_classes.append(name.removeprefix("data_"))
+            children = node.get("children", [])
+            if isinstance(children, list):
+                data_classes.extend(self._extract_data_classes(children))
+        return sorted(set(data_classes))
 
     def lookup(self, email: str) -> list[dict[str, Any]]:
         cache_key = hashlib.sha256(email.strip().lower().encode()).hexdigest()
@@ -83,8 +109,7 @@ class BreachService:
         if cached and now - cached[0] < self.cache_ttl:
             return deepcopy(cached[1])
 
-        raw_breaches = self.provider(email)
-        normalized = [normalize_breach(item) for item in raw_breaches]
+        normalized = [normalize_breach(item) for item in self.provider(email)]
         self._cache[cache_key] = (now, normalized)
         return deepcopy(normalized)
 
@@ -103,7 +128,8 @@ def normalize_data_classes(data: Any) -> list[str]:
             if value:
                 normalized.append(value)
         return normalized
-    return [str(data).strip()] if str(data).strip() else []
+    value = str(data).strip()
+    return [value] if value else []
 
 
 def normalize_breach(raw_breach: dict[str, Any]) -> dict[str, Any]:
@@ -116,5 +142,4 @@ def normalize_breach(raw_breach: dict[str, Any]) -> dict[str, Any]:
 
 
 def lookup_breaches(email: str, provider: Any | None = None) -> list[dict[str, Any]]:
-    service = BreachService(provider=provider)
-    return service.lookup(email)
+    return BreachService(provider=provider).lookup(email)

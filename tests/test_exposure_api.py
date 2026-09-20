@@ -54,25 +54,39 @@ def test_normalize_breach_builds_expected_shape():
 def test_xposedornot_provider_is_normalized_without_network(monkeypatch):
     class FakeResponse:
         status_code = 200
+        url = ""
 
         def raise_for_status(self):
             return None
 
         def json(self):
-            return {"breaches": [["ExampleBreach"]]}
+            if "check-email" in self.url:
+                return {"breaches": [["ExampleBreach"]]}
+            return {
+                "BreachMetrics": {
+                    "xposed_data": [{
+                        "children": [{
+                            "name": "data_Email addresses",
+                            "children": [],
+                        }],
+                    }],
+                    "yearwise_details": [{"y2024": 1}],
+                },
+            }
 
     def fake_get(*args, **kwargs):
-        assert "api.xposedornot.com" in args[0]
         assert kwargs["headers"]["accept"] == "application/json"
-        return FakeResponse()
+        response = FakeResponse()
+        response.url = args[0]
+        return response
 
     monkeypatch.setenv("BREACH_PROVIDER", "xposedornot")
     monkeypatch.setattr("app.breach_service.httpx.get", fake_get)
 
     assert BreachService().lookup("user@example.com") == [{
         "name": "ExampleBreach",
-        "date": None,
-        "data_classes": [],
+        "date": "2024–2024",
+        "data_classes": ["Email addresses"],
         "source": "XposedOrNot",
     }]
 
@@ -148,6 +162,10 @@ def test_provider_breaches_generate_alert_and_recommendation():
     payload = response.json()
     assert payload["summary"]["breach_count"] == 2
     assert payload["summary"]["severity"] == "high"
+    assert set(payload["breaches"][0]) == {"name", "date", "data_classes", "source"}
+    assert payload["breaches"][0]["date"] == "2013-01-01"
+    assert payload["breaches"][0]["data_classes"] == ["Email", "Password hash"]
+    assert payload["breaches"][0]["source"] == "Breach database"
     assert payload["alerts"][0]["type"] == "credential_compromise"
     assert any("Alterar senhas afetadas" in item for item in payload["recommendations"])
 

@@ -150,7 +150,7 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
             "email": email,
             "breaches": [
                 Breach(
-                    name=breach["name"],
+                    name=breach.get("name", "Unknown breach"),
                     date=breach.get("date"),
                     data_classes=breach.get("data_classes", []),
                     source=breach.get("source", "unknown"),

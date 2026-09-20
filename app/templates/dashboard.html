@@ -60,8 +60,13 @@
                     </div>
 
                     <div class="panel results breaches-panel" aria-live="polite">
-                        <h2>Incidentes encontrados</h2>
+                        <h2>Origem dos vazamentos</h2>
                         <div class="breaches-list" id="breaches-list"></div>
+                        <nav class="pagination" id="breach-pagination" aria-label="Paginação dos vazamentos">
+                            <button class="pagination-button" id="previous-page" type="button">Anterior</button>
+                            <span class="pagination-status" id="pagination-status"></span>
+                            <button class="pagination-button" id="next-page" type="button">Próxima</button>
+                        </nav>
                     </div>
                 </section>
 

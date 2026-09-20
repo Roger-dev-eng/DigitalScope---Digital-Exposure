@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import os
+import time
+from copy import deepcopy
 from typing import Any, Iterable
 
 import httpx
@@ -18,8 +21,10 @@ class BreachRateLimitError(BreachProviderError):
 
 
 class BreachService:
-    def __init__(self, provider: Any | None = None):
+    def __init__(self, provider: Any | None = None, cache_ttl: float = 300.0):
         self.provider = provider or self._default_provider
+        self.cache_ttl = cache_ttl
+        self._cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     def _default_provider(self, email: str) -> list[dict[str, Any]]:
         api_key = os.getenv("HIBP_API_KEY")
@@ -60,8 +65,16 @@ class BreachService:
         ]
 
     def lookup(self, email: str) -> list[dict[str, Any]]:
+        cache_key = hashlib.sha256(email.strip().lower().encode()).hexdigest()
+        cached = self._cache.get(cache_key)
+        now = time.monotonic()
+        if cached and now - cached[0] < self.cache_ttl:
+            return deepcopy(cached[1])
+
         raw_breaches = self.provider(email)
-        return [normalize_breach(item) for item in raw_breaches]
+        normalized = [normalize_breach(item) for item in raw_breaches]
+        self._cache[cache_key] = (now, normalized)
+        return deepcopy(normalized)
 
 
 def normalize_data_classes(data: Any) -> list[str]:

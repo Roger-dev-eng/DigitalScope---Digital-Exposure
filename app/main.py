@@ -1,7 +1,9 @@
+import time
+from collections import defaultdict, deque
 from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, EmailStr
 
 from app.breach_service import BreachProviderError, BreachRateLimitError, lookup_breaches
@@ -82,9 +84,27 @@ def calculate_severity(breaches: list[dict[str, Any]]) -> str:
 def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = None) -> FastAPI:
     provider = breach_provider or (lambda email: lookup_breaches(email))
     app = FastAPI(title="DigitalScope API", version="0.1.0")
+    request_history: dict[str, deque[float]] = defaultdict(deque)
+    rate_limit_window = 60.0
+    rate_limit_max_requests = 30
 
     @app.middleware("http")
     async def add_security_headers(request, call_next):
+        if request.url.path == "/api/exposure":
+            client_key = request.client.host if request.client else "unknown"
+            now = time.monotonic()
+            history = request_history[client_key]
+            while history and now - history[0] >= rate_limit_window:
+                history.popleft()
+            if len(history) >= rate_limit_max_requests:
+                response = JSONResponse(
+                    status_code=429,
+                    content={"detail": "Limite de consultas atingido. Tente novamente mais tarde."},
+                )
+                response.headers["Retry-After"] = str(int(rate_limit_window))
+                return response
+            history.append(now)
+
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"

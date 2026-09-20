@@ -86,6 +86,24 @@ def test_default_provider_stays_local_without_api_key(monkeypatch):
     assert BreachService().lookup("user@example.com") == []
 
 
+def test_breach_service_caches_normalized_results_without_raw_email_key():
+    calls = 0
+
+    def provider(email: str):
+        nonlocal calls
+        calls += 1
+        return [{"name": "Example", "data_classes": ["Email"]}]
+
+    service = BreachService(provider=provider)
+    first_result = service.lookup("User@Example.com")
+    first_result[0]["name"] = "Changed locally"
+    second_result = service.lookup("user@example.com")
+
+    assert calls == 1
+    assert second_result[0]["name"] == "Example"
+    assert len(service._cache) == 1
+
+
 def test_provider_failure_returns_bad_gateway():
     def failing_provider(email: str):
         raise BreachProviderError("Provider unavailable")
@@ -169,3 +187,15 @@ def test_responses_include_security_headers():
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+def test_exposure_endpoint_has_local_rate_limit():
+    client = TestClient(create_app())
+
+    for _ in range(30):
+        assert client.get("/api/exposure?email=user@example.com").status_code == 200
+
+    response = client.get("/api/exposure?email=user@example.com")
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "60"

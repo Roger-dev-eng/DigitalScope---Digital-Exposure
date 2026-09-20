@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.breach_service import normalize_breach, normalize_data_classes
+from app.breach_service import BreachService, normalize_breach, normalize_data_classes
 from app.main import create_app
 
 
@@ -42,6 +42,36 @@ def test_normalize_breach_builds_expected_shape():
         "data_classes": ["Email", "Password hash"],
         "source": "Breach database",
     }
+
+
+def test_hibp_provider_is_normalized_without_network(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return [{
+                "Name": "ExampleBreach",
+                "BreachDate": "2024-01-01",
+                "DataClasses": ["Email addresses"],
+            }]
+
+    def fake_get(*args, **kwargs):
+        assert "haveibeenpwned.com" in args[0]
+        assert kwargs["headers"]["hibp-api-key"] == "test-key"
+        return FakeResponse()
+
+    monkeypatch.setenv("HIBP_API_KEY", "test-key")
+    monkeypatch.setattr("app.breach_service.httpx.get", fake_get)
+
+    assert BreachService().lookup("user@example.com") == [{
+        "name": "ExampleBreach",
+        "date": "2024-01-01",
+        "data_classes": ["Email addresses"],
+        "source": "Have I Been Pwned",
+    }]
 
 
 def test_provider_breaches_generate_alert_and_recommendation():

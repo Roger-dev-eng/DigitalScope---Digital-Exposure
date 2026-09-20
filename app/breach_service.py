@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Iterable
+
+import httpx
 
 
 class BreachService:
@@ -8,8 +11,33 @@ class BreachService:
         self.provider = provider or self._default_provider
 
     def _default_provider(self, email: str) -> list[dict[str, Any]]:
-        # Placeholder provider: no breach data by default.
-        return []
+        api_key = os.getenv("HIBP_API_KEY")
+        if not api_key:
+            return []
+
+        response = httpx.get(
+            f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}",
+            headers={
+                "hibp-api-key": api_key,
+                "user-agent": "DigitalScope/0.1",
+            },
+            params={"truncateResponse": "false"},
+            timeout=10.0,
+        )
+
+        if response.status_code == 404:
+            return []
+
+        response.raise_for_status()
+        return [
+            {
+                "name": item.get("Name", "Unknown breach"),
+                "date": item.get("BreachDate"),
+                "data_classes": item.get("DataClasses", []),
+                "source": "Have I Been Pwned",
+            }
+            for item in response.json()
+        ]
 
     def lookup(self, email: str) -> list[dict[str, Any]]:
         raw_breaches = self.provider(email)

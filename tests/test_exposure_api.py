@@ -10,7 +10,8 @@ from app.breach_service import (
 from app.main import calculate_severity, create_app
 
 
-def test_valid_email_returns_empty_exposure_summary():
+def test_valid_email_returns_empty_exposure_summary(monkeypatch):
+    monkeypatch.setenv("BREACH_PROVIDER", "local")
     client = TestClient(create_app())
     response = client.get("/api/exposure?email=user@example.com")
 
@@ -50,7 +51,7 @@ def test_normalize_breach_builds_expected_shape():
     }
 
 
-def test_hibp_provider_is_normalized_without_network(monkeypatch):
+def test_xposedornot_provider_is_normalized_without_network(monkeypatch):
     class FakeResponse:
         status_code = 200
 
@@ -58,30 +59,26 @@ def test_hibp_provider_is_normalized_without_network(monkeypatch):
             return None
 
         def json(self):
-            return [{
-                "Name": "ExampleBreach",
-                "BreachDate": "2024-01-01",
-                "DataClasses": ["Email addresses"],
-            }]
+            return {"breaches": [["ExampleBreach"]]}
 
     def fake_get(*args, **kwargs):
-        assert "haveibeenpwned.com" in args[0]
-        assert kwargs["headers"]["hibp-api-key"] == "test-key"
+        assert "api.xposedornot.com" in args[0]
+        assert kwargs["headers"]["accept"] == "application/json"
         return FakeResponse()
 
-    monkeypatch.setenv("HIBP_API_KEY", "test-key")
+    monkeypatch.setenv("BREACH_PROVIDER", "xposedornot")
     monkeypatch.setattr("app.breach_service.httpx.get", fake_get)
 
     assert BreachService().lookup("user@example.com") == [{
         "name": "ExampleBreach",
-        "date": "2024-01-01",
-        "data_classes": ["Email addresses"],
-        "source": "Have I Been Pwned",
+        "date": None,
+        "data_classes": [],
+        "source": "XposedOrNot",
     }]
 
 
 def test_default_provider_stays_local_without_api_key(monkeypatch):
-    monkeypatch.delenv("HIBP_API_KEY", raising=False)
+    monkeypatch.setenv("BREACH_PROVIDER", "local")
 
     assert BreachService().lookup("user@example.com") == []
 
@@ -219,7 +216,8 @@ def test_dashboard_static_assets_are_served():
     assert javascript_response.status_code == 200
 
 
-def test_exposure_endpoint_has_local_rate_limit():
+def test_exposure_endpoint_has_local_rate_limit(monkeypatch):
+    monkeypatch.setenv("BREACH_PROVIDER", "local")
     client = TestClient(create_app())
 
     for _ in range(30):

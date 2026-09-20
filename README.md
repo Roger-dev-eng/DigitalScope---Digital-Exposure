@@ -48,18 +48,15 @@ A API expõe o endpoint:
 GET /api/exposure?email=user@example.com
 ```
 
-## Provider opcional de vazamentos
+## Provider de vazamentos
 
-Por padrão, o projeto não consulta serviços externos. Para habilitar dados reais do Have I Been Pwned, configure a chave da API apenas no ambiente local:
+O projeto usa o XposedOrNot, uma API gratuita que não exige chave para a consulta básica. O arquivo `.env` local já está ignorado pelo Git.
 
-O arquivo `.env` local já está ignorado pelo Git. Preencha a variável nesse arquivo sem adicioná-lo ao repositório.
-
-```powershell
-$env:HIBP_API_KEY = "sua-chave-aqui"
-python -m uvicorn app.main:app --reload
+```env
+BREACH_PROVIDER=xposedornot
 ```
 
-Não inclua a chave em arquivos versionados ou no GitHub. Sem `HIBP_API_KEY`, o sistema mantém o provider vazio e continua funcionando para desenvolvimento e testes.
+Para desenvolvimento sem chamadas externas, use `BREACH_PROVIDER=local`. Não inclua dados sensíveis ou credenciais em arquivos versionados.
 
 ## Estrutura esperada
 

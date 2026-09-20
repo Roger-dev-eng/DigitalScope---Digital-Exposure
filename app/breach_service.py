@@ -27,18 +27,20 @@ class BreachService:
         self._cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     def _default_provider(self, email: str) -> list[dict[str, Any]]:
-        api_key = os.getenv("HIBP_API_KEY")
-        if not api_key:
+        provider_name = os.getenv("BREACH_PROVIDER", "xposedornot").lower()
+        if provider_name == "local":
             return []
+
+        if provider_name != "xposedornot":
+            raise BreachProviderError("Provider de vazamentos não suportado.")
 
         try:
             response = httpx.get(
-                f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}",
+                f"https://api.xposedornot.com/v1/check-email/{email}",
                 headers={
-                    "hibp-api-key": api_key,
                     "user-agent": "DigitalScope/0.1",
+                    "accept": "application/json",
                 },
-                params={"truncateResponse": "false"},
                 timeout=10.0,
             )
         except httpx.RequestError as error:
@@ -54,14 +56,24 @@ class BreachService:
             response.raise_for_status()
         except httpx.HTTPError as error:
             raise BreachProviderError("O provider de vazamentos recusou a consulta.") from error
+        payload = response.json()
+        if isinstance(payload, list):
+            raw_breaches = payload
+        else:
+            raw_breaches = payload.get("breaches", [])
+            if isinstance(raw_breaches, dict):
+                raw_breaches = raw_breaches.get("breaches", [])
+        if len(raw_breaches) == 1 and isinstance(raw_breaches[0], list):
+            raw_breaches = raw_breaches[0]
+
         return [
             {
-                "name": item.get("Name", "Unknown breach"),
-                "date": item.get("BreachDate"),
-                "data_classes": item.get("DataClasses", []),
-                "source": "Have I Been Pwned",
+                "name": item if isinstance(item, str) else item.get("name", "Unknown breach"),
+                "date": None if isinstance(item, str) else item.get("date"),
+                "data_classes": [] if isinstance(item, str) else item.get("data_classes", []),
+                "source": "XposedOrNot",
             }
-            for item in response.json()
+            for item in raw_breaches
         ]
 
     def lookup(self, email: str) -> list[dict[str, Any]]:

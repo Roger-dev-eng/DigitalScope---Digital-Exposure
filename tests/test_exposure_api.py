@@ -74,6 +74,12 @@ def test_hibp_provider_is_normalized_without_network(monkeypatch):
     }]
 
 
+def test_default_provider_stays_local_without_api_key(monkeypatch):
+    monkeypatch.delenv("HIBP_API_KEY", raising=False)
+
+    assert BreachService().lookup("user@example.com") == []
+
+
 def test_provider_breaches_generate_alert_and_recommendation():
     def fake_provider(email: str):
         assert email == "user@example.com"

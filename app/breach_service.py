@@ -4,6 +4,9 @@ import os
 from typing import Any, Iterable
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class BreachService:

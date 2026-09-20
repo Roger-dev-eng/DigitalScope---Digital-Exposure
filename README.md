@@ -52,6 +52,8 @@ GET /api/exposure?email=user@example.com
 
 Por padrão, o projeto não consulta serviços externos. Para habilitar dados reais do Have I Been Pwned, configure a chave da API apenas no ambiente local:
 
+O arquivo `.env` local já está ignorado pelo Git. Preencha a variável nesse arquivo sem adicioná-lo ao repositório.
+
 ```powershell
 $env:HIBP_API_KEY = "sua-chave-aqui"
 python -m uvicorn app.main:app --reload

@@ -127,6 +127,16 @@ Endpoint de consulta:
 GET /api/exposure?email=user@example.com
 ```
 
+## Publicação na Azure
+
+O repositório inclui uma esteira de publicação para Azure Container Apps:
+
+```text
+GitHub Actions → Azure Container Registry → Azure Container Apps
+```
+
+O GitHub Actions cria ou atualiza a infraestrutura, monta a imagem no Azure Container Registry e publica a nova versão no Container Apps. A configuração detalhada, incluindo a conexão segura entre GitHub e Azure, está em [docs/azure-deployment.md](docs/azure-deployment.md).
+
 Exemplo de resposta:
 
 ```json
@@ -216,4 +226,3 @@ Os testes cobrem:
 - Adicionar exportação segura do resultado.
 - Criar autenticação caso o histórico seja implementado.
 - Avaliar persistência somente após definir retenção e exclusão de dados.
-

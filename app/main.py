@@ -124,6 +124,11 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                                         <ul class="details-list" id="recommendations-list"></ul>
                                     </div>
                                 </div>
+
+                                <div class="panel results breaches-panel" aria-live="polite">
+                                    <h2>Incidentes encontrados</h2>
+                                    <div class="breaches-list" id="breaches-list"></div>
+                                </div>
                             </section>
 
                             <section class="meta-grid" id="metrics" aria-live="polite">
@@ -297,6 +302,37 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                     padding-left: 12px;
                 }
 
+                .breaches-panel {
+                    display: none;
+                }
+
+                .breaches-panel.is-visible {
+                    display: block;
+                }
+
+                .breach-item {
+                    border-top: 1px solid rgba(122, 118, 94, 0.25);
+                    padding: 14px 0;
+                }
+
+                .breach-item:first-child {
+                    border-top: 0;
+                    padding-top: 0;
+                }
+
+                .breach-name {
+                    display: block;
+                    font-size: 1.05rem;
+                    font-weight: 700;
+                }
+
+                .breach-meta {
+                    color: var(--ink-soft);
+                    font-size: 0.86rem;
+                    line-height: 1.5;
+                    margin-top: 5px;
+                }
+
                 .results {
                     display: none;
                 }
@@ -465,6 +501,35 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                         payload.recommendations,
                         "Nenhuma recomendação disponível."
                     );
+
+                    const breachesList = document.getElementById("breaches-list");
+                    breachesList.replaceChildren();
+                    if (payload.breaches.length === 0) {
+                        const emptyState = document.createElement("p");
+                        emptyState.className = "breach-meta";
+                        emptyState.textContent = "Nenhuma brecha conhecida foi associada a este e-mail.";
+                        breachesList.appendChild(emptyState);
+                    } else {
+                        payload.breaches.forEach((breach) => {
+                            const item = document.createElement("article");
+                            item.className = "breach-item";
+
+                            const name = document.createElement("strong");
+                            name.className = "breach-name";
+                            name.textContent = breach.name;
+
+                            const metadata = document.createElement("p");
+                            metadata.className = "breach-meta";
+                            const date = breach.date || "Data não informada";
+                            const dataClasses = breach.data_classes.length
+                                ? breach.data_classes.join(", ")
+                                : "Tipos de dados não informados";
+                            metadata.textContent = `${date} | Dados: ${dataClasses}`;
+
+                            item.append(name, metadata);
+                            breachesList.appendChild(item);
+                        });
+                    }
                     results.forEach((element) => element.classList.add("is-visible"));
                 });
             </script>

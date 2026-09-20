@@ -155,6 +155,23 @@ def test_provider_breaches_generate_alert_and_recommendation():
     assert any("Alterar senhas afetadas" in item for item in payload["recommendations"])
 
 
+def test_api_reuses_breach_service_cache_between_requests():
+    calls = 0
+
+    def provider(email: str):
+        nonlocal calls
+        calls += 1
+        return [{"name": "Example", "data_classes": ["Email"]}]
+
+    client = TestClient(create_app(breach_provider=provider))
+    first_response = client.get("/api/exposure?email=user@example.com")
+    second_response = client.get("/api/exposure?email=user@example.com")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert calls == 1
+
+
 def test_calculate_severity_uses_sensitive_data_categories():
     assert calculate_severity([{"data_classes": ["Phone number"]}]) == "medium"
     assert calculate_severity([{"data_classes": ["Email"]}]) == "low"
@@ -187,6 +204,19 @@ def test_responses_include_security_headers():
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+def test_dashboard_static_assets_are_served():
+    client = TestClient(create_app())
+
+    html_response = client.get("/")
+    css_response = client.get("/static/styles.css")
+    javascript_response = client.get("/static/dashboard.js")
+
+    assert html_response.status_code == 200
+    assert 'href="/static/styles.css"' in html_response.text
+    assert css_response.status_code == 200
+    assert javascript_response.status_code == 200
 
 
 def test_exposure_endpoint_has_local_rate_limit():

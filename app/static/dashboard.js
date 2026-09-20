@@ -27,6 +27,7 @@ form.addEventListener("submit", async (event) => {
         document.getElementById("alert-count").textContent = payload.alerts.length;
         document.getElementById("account-count").textContent = payload.breaches.length;
 
+
         const renderList = (elementId, items, emptyMessage) => {
             const list = document.getElementById(elementId);
             list.replaceChildren();

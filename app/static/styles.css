@@ -53,6 +53,11 @@ h1 { margin: 8px 0 0; font-size: clamp(2.1rem, 4vw, 3.2rem); line-height: 1.1; l
 .details-list li { border-left: 3px solid var(--accent); color: var(--ink-soft); line-height: 1.45; padding-left: 12px; }
 .breaches-panel { display: none; }
 .breaches-panel.is-visible { display: block; }
+.aggregate-panel { display: none; }
+.aggregate-panel.is-visible { display: block; }
+.aggregate-period { color: var(--ink-soft); margin: 0 0 14px; }
+.aggregate-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.aggregate-tag { border: 1px solid rgba(122, 118, 94, 0.35); border-radius: 999px; background: var(--panel-soft); color: var(--ink-soft); font-size: 0.8rem; padding: 7px 10px; }
 .breach-item { border-top: 1px solid rgba(122, 118, 94, 0.25); padding: 14px 0; }
 .breach-item:first-child { border-top: 0; padding-top: 0; }
 .breach-name { display: block; font-size: 1.05rem; font-weight: 700; }

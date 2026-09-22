@@ -1,0 +1,77 @@
+name: Build and deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Sign in to Azure with OpenID Connect
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create or update Azure infrastructure
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az deployment group create \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --template-file infra/main.bicep \
+              --parameters \
+                appName="${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+                acrName="${{ vars.AZURE_ACR_NAME }}"
+
+      - name: Build and publish image in Azure Container Registry
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az acr build \
+              --registry "${{ vars.AZURE_ACR_NAME }}" \
+              --image "digitalscope:${{ github.sha }}" \
+              .
+
+      - name: Deploy image to Azure Container Apps
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            registry_server=$(az acr show \
+              --name "${{ vars.AZURE_ACR_NAME }}" \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --query loginServer \
+              --output tsv)
+            az deployment group create \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --template-file infra/container-app.bicep \
+              --parameters \
+                appName="${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+                acrName="${{ vars.AZURE_ACR_NAME }}" \
+                containerImage="${registry_server}/digitalscope:${{ github.sha }}" \
+                breachProvider="xposedornot"
+
+      - name: Show deployed address
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az containerapp show \
+              --name "${{ vars.AZURE_CONTAINER_APP_NAME }}" \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --query properties.configuration.ingress.fqdn \
+              --output tsv

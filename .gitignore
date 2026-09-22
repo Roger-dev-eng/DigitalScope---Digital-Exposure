@@ -1,4 +1,6 @@
-.github/
+.github/*
+!.github/workflows/
+!.github/workflows/deploy-azure.yml
 .venv/
 venv/
 .env
@@ -22,3 +24,4 @@ Thumbs.db
 *.swp
 *.swo
 *.log
+docs/

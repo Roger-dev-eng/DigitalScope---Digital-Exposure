@@ -39,14 +39,17 @@ jobs:
                 appName="${{ vars.AZURE_CONTAINER_APP_NAME }}" \
                 acrName="${{ vars.AZURE_ACR_NAME }}"
 
-      - name: Build and publish image in Azure Container Registry
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az acr build \
-              --registry "${{ vars.AZURE_ACR_NAME }}" \
-              --image "digitalscope:${{ github.sha }}" \
-              .
+      # === ALTERAÇÃO PRINCIPAL AQUI ===
+      - name: Login to ACR
+        run: |
+          az acr login --name "${{ vars.AZURE_ACR_NAME }}"
+
+      - name: Build and Push image
+        run: |
+          IMAGE="${{ vars.AZURE_ACR_NAME }}.azurecr.io/digitalscope:${{ github.sha }}"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+      # === FIM DA ALTERAÇÃO ===
 
       - name: Deploy image to Azure Container Apps
         uses: azure/cli@v2

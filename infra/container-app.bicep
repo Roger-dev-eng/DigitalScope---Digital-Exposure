@@ -18,7 +18,6 @@ param containerImage string
 param breachProvider string = 'xposedornot'
 
 var environmentName = '${appName}-env'
-var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
 resource containerEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' existing = {
   name: environmentName
@@ -31,9 +30,6 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing =
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
   properties: {
     managedEnvironmentId: containerEnvironment.id
     configuration: {
@@ -46,7 +42,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: registry.properties.loginServer
-          identity: 'system'
+          username: registry.listCredentials().username
+          passwordSecretRef: 'acr-password'
+        }
+      ]
+      secrets: [
+        {
+          name: 'acr-password'
+          value: registry.listCredentials().passwords[0].value
         }
       ]
     }
@@ -72,16 +75,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         maxReplicas: 3
       }
     }
-  }
-}
-
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(registry.id, containerApp.id, acrPullRoleId)
-  scope: registry
-  properties: {
-    roleDefinitionId: acrPullRoleId
-    principalId: containerApp.identity.principalId
-    principalType: 'ServicePrincipal'
   }
 }
 

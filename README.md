@@ -1,7 +1,9 @@
 # DigitalScope - Digital Exposure
 
 Dashboard de exposição digital pessoal focado em evidências, privacidade e explicações claras sobre vazamentos associados a um e-mail.
+## Live Demo
 
+https://digitalscope-api.jollysmoke-a1a46fbe.brazilsouth.azurecontainerapps.io
 ## Índice
 
 - [Visão geral](#visao-geral)
@@ -12,6 +14,7 @@ Dashboard de exposição digital pessoal focado em evidências, privacidade e ex
 - [Como executar](#como-executar)
 - [Como usar](#como-usar)
 - [API](#api)
+- [Deploy na Azure](#deploy-na-azure)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Testes](#testes)
 - [Limitações conhecidas](#limitacoes-conhecidas)
@@ -20,12 +23,12 @@ Dashboard de exposição digital pessoal focado em evidências, privacidade e ex
 <a id="visao-geral"></a>
 ## Visão geral
 
-O DigitalScope consulta um e-mail e apresenta sinais de exposição encontrados em bases públicas. O sistema mostra os incidentes, a data ou período informado, os tipos de dados e a fonte da consulta.
-
-O projeto não afirma que uma conta foi invadida nem exibe dados privados recuperados de vazamentos.
+O DigitalScope consulta um e-mail e apresenta sinais de exposição encontrados em bases públicas. O sistema mostra os incidentes, a data ou período informado, os tipos de dados e a fonte da consulta. O projeto não afirma que uma conta foi invadida nem exibe dados privados recuperados de vazamentos.
 
 <a id="principios-de-privacidade"></a>
 ## Princípios de privacidade
+
+O DigitalScope segue os seguintes princípios de privacidade:
 
 - Não solicitar ou armazenar senhas.
 - Não exibir o conteúdo de dados vazados.
@@ -65,8 +68,6 @@ O projeto não afirma que uma conta foi invadida nem exibe dados privados recupe
 <a id="configuracao"></a>
 ## Configuração
 
-O arquivo `.env` é local e está protegido pelo `.gitignore`.
-
 ### Provider XposedOrNot
 
 Configuração padrão para consultar a API gratuita:
@@ -85,7 +86,6 @@ BREACH_PROVIDER=local
 
 Nesse modo, a consulta retorna uma lista vazia. Providers simulados também podem ser injetados nos testes através de `create_app(breach_provider=...)`.
 
-Nunca adicione chaves, tokens ou dados pessoais ao GitHub.
 
 <a id="como-executar"></a>
 ## Como executar
@@ -127,16 +127,6 @@ Endpoint de consulta:
 GET /api/exposure?email=user@example.com
 ```
 
-## Publicação na Azure
-
-O repositório inclui uma esteira de publicação para Azure Container Apps:
-
-```text
-GitHub Actions → Azure Container Registry → Azure Container Apps
-```
-
-O GitHub Actions cria ou atualiza a infraestrutura, monta a imagem no Azure Container Registry e publica a nova versão no Container Apps. A configuração detalhada, incluindo a conexão segura entre GitHub e Azure, está em [docs/azure-deployment.md](docs/azure-deployment.md).
-
 Exemplo de resposta:
 
 ```json
@@ -159,12 +149,83 @@ Exemplo de resposta:
   }
 }
 ```
-
 Respostas de erro relevantes:
 
 - `422`: e-mail inválido.
 - `429`: limite local ou limite do provider atingido.
 - `502`: provider externo indisponível ou recusou a consulta.
+
+
+## Deploy na Azure
+
+
+O projeto utiliza **GitHub Actions** para realizar o processo de CI/CD e publicar automaticamente a aplicação no **Microsoft Azure** sempre que ocorre um `push` na branch `main` ou quando o workflow é executado manualmente.
+
+### Fluxo de Deploy
+
+O workflow `.github/workflows/deploy.yml` realiza as seguintes etapas:
+
+1. **Checkout do código**
+
+   * Utiliza `actions/checkout@v4` para obter o código-fonte do repositório.
+
+2. **Autenticação no Azure**
+
+   * Utiliza `azure/login@v2` com **OpenID Connect (OIDC)**.
+   * A autenticação utiliza `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_SUBSCRIPTION_ID`.
+   * O acesso é realizado pela identidade `github-digitalscope-deploy`, evitando o armazenamento de credenciais tradicionais no GitHub.
+
+3. **Provisionamento da infraestrutura**
+
+   * Utiliza **Azure CLI** e **Bicep** para criar ou atualizar os recursos necessários.
+   * O template `infra/main.bicep` é executado através de:
+     `az deployment group create`.
+   * Os parâmetros da aplicação são definidos por meio das variáveis do ambiente de produção.
+
+4. **Build e publicação da imagem**
+
+   * Utiliza `az acr build` para construir a imagem Docker diretamente no **Azure Container Registry (ACR)**.
+   * A imagem é versionada utilizando o SHA do commit do GitHub:
+     `digitalscope:${{ github.sha }}`.
+
+5. **Deploy no Azure Container Apps**
+
+   * O workflow obtém o endereço do ACR e executa o template `infra/container-app.bicep`.
+   * A imagem correspondente ao commit atual é utilizada para atualizar a aplicação.
+   * O parâmetro `breachProvider` é configurado como `xposedornot`.
+
+6. **Exibição do endereço da aplicação**
+
+   * Ao final do processo, o workflow consulta o FQDN do Azure Container App utilizando `az containerapp show`, permitindo identificar o endereço público da aplicação.
+
+### Arquitetura do Deploy
+
+```text
+GitHub Repository
+       │
+       │ push → main
+       ▼
+GitHub Actions
+       │
+       │ OIDC
+       ▼
+Azure
+       │
+       ├── Resource Group
+       │      └── rg-digitalscope-prod
+       │
+       ├── Bicep
+       │      ├── main.bicep
+       │      └── container-app.bicep
+       │
+       ├── Azure Container Registry
+       │      └── digitalscope:<commit-sha>
+       │
+       └── Azure Container Apps
+              └── DigitalScope
+```
+
+A infraestrutura é definida como código por meio do **Bicep**, enquanto o GitHub Actions automatiza autenticação, provisionamento, build da imagem e atualização da aplicação em produção.
 
 <a id="estrutura-do-projeto"></a>
 ## Estrutura do projeto
@@ -210,8 +271,8 @@ Os testes cobrem:
 - headers de segurança;
 - entrega dos arquivos estáticos.
 
-<a id="limitacoes-conhecidas"></a>
-## Limitações conhecidas
+<a id="limitacoes"></a>
+## Limitações
 
 - O XposedOrNot pode fornecer categorias e anos de forma agregada, sem data individual para cada incidente.
 - O sistema não confirma quais campos específicos de um usuário foram efetivamente acessados.
@@ -224,5 +285,5 @@ Os testes cobrem:
 
 - Melhorar a precisão dos metadados individuais quando o provider disponibilizar esse nível de detalhe.
 - Adicionar exportação segura do resultado.
-- Criar autenticação caso o histórico seja implementado.
+- Incluir a funcionalidade de ver como seus dados eram usados, com base nos termos de serviços e políticas de privacidade da fonte do vazamento.
 - Avaliar persistência somente após definir retenção e exclusão de dados.

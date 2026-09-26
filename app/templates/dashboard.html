@@ -25,7 +25,7 @@
                     <div class="panel query-panel">
                         <h2>Consulta</h2>
                         <p>Analise um e-mail para verificar sinais de exposição pública e vazamentos conhecidos.</p>
-                        <form id="exposure-form">
+                        <form id="exposure-form" novalidate>
                             <div class="input-row">
                                 <input class="atom-input" type="email" name="email" placeholder="Digite seu e-mail" required />
                                 <button class="atom-button" id="analyze-button" type="submit">Analisar</button>
@@ -90,6 +90,6 @@
             </main>
         </div>
     </div>
-    <script src="/static/dashboard.js"></script>
+    <script src="/static/dashboard.js?v=2"></script>
 </body>
 </html>

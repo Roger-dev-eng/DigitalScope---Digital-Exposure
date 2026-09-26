@@ -2,9 +2,29 @@ const form = document.getElementById("exposure-form");
 const analyzeButton = document.getElementById("analyze-button");
 const formStatus = document.getElementById("form-status");
 const results = document.querySelectorAll(".results");
+const emailInput = form.elements.email;
+
+emailInput.addEventListener("invalid", () => {
+    formStatus.className = "form-status error";
+    formStatus.textContent = emailInput.validity.valueMissing
+        ? "Digite seu e-mail para continuar."
+        : "Digite um endereço de e-mail válido (ex.: nome@exemplo.com).";
+});
+
+emailInput.addEventListener("input", () => {
+    if (emailInput.validity.valid) {
+        formStatus.className = "form-status";
+        formStatus.textContent = "";
+    }
+});
 
 form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!emailInput.validity.valid) {
+        emailInput.reportValidity();
+        return;
+    }
+
     const email = new FormData(form).get("email");
     analyzeButton.disabled = true;
     analyzeButton.textContent = "Analisando...";
@@ -16,7 +36,15 @@ form.addEventListener("submit", async (event) => {
 
         if (!response.ok) {
             const errorPayload = await response.json().catch(() => ({}));
-            throw new Error(errorPayload.detail || "Não foi possível concluir a consulta.");
+            if (response.status === 422) {
+                throw new Error("O e-mail informado é inválido. Digite um endereço válido, como nome@exemplo.com.");
+            }
+
+            const detail = errorPayload.detail;
+            const message = typeof detail === "string"
+                ? detail
+                : "Não foi possível concluir a consulta. Tente novamente.";
+            throw new Error(message);
         }
 
         const payload = await response.json();
@@ -126,7 +154,10 @@ form.addEventListener("submit", async (event) => {
             renderBreaches();
         }
         results.forEach((element) => element.classList.add("is-visible"));
-        formStatus.textContent = "Consulta concluída.";
+        formStatus.className = "form-status";
+        formStatus.textContent = payload.breaches.length === 0
+            ? "Nenhuma exposição conhecida foi encontrada nas fontes consultadas para este e-mail. Isso não garante que não existam exposições em outras fontes."
+            : "Consulta concluída. Foram encontradas exposições associadas a este e-mail.";
     } catch (error) {
         formStatus.className = "form-status error";
         formStatus.textContent = error.message;

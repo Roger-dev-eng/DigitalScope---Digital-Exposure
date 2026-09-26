@@ -39,6 +39,16 @@ form.addEventListener("submit", async (event) => {
             if (response.status === 422) {
                 throw new Error("O e-mail informado é inválido. Digite um endereço válido, como nome@exemplo.com.");
             }
+            if (response.status === 429) {
+                const providerLimited = typeof errorPayload.detail === "string"
+                    && errorPayload.detail.toLowerCase().includes("provider");
+                throw new Error(providerLimited
+                    ? "O XposedOrNot limitou as consultas. Aguarde um pouco e tente novamente."
+                    : "O limite de consultas do aplicativo foi atingido. Aguarde um pouco e tente novamente.");
+            }
+            if (response.status === 502) {
+                throw new Error("O servidor do XposedOrNot está indisponível no momento. Tente novamente mais tarde.");
+            }
 
             const detail = errorPayload.detail;
             const message = typeof detail === "string"
@@ -103,25 +113,34 @@ form.addEventListener("submit", async (event) => {
                 date.className = "breach-date";
                 date.textContent = `Data: ${breach.date || "Data não informada"}`;
 
-                const dataTooltip = document.createElement("span");
-                dataTooltip.className = "data-tooltip";
-                const dataTrigger = document.createElement("button");
-                dataTrigger.className = "data-tooltip-trigger";
-                dataTrigger.type = "button";
-                dataTrigger.textContent = "Dados vazados";
-                const dataContent = document.createElement("span");
-                dataContent.className = "data-tooltip-content";
-                dataContent.textContent = breach.data_classes.length
-                    ? breach.data_classes.join(", ")
-                    : "Tipos de dados não informados";
-                dataTooltip.append(dataTrigger, dataContent);
-
                 const source = document.createElement("span");
                 source.className = "breach-source";
                 source.textContent = `Fonte: ${breach.source || "XposedOrNot"}`;
 
-                metadata.append(date, document.createTextNode("|"), dataTooltip, document.createTextNode("|"), source);
+                metadata.append(date);
+                if (breach.details_available) {
+                    const dataTooltip = document.createElement("span");
+                    dataTooltip.className = "data-tooltip";
+                    const dataTrigger = document.createElement("button");
+                    dataTrigger.className = "data-tooltip-trigger";
+                    dataTrigger.type = "button";
+                    dataTrigger.textContent = "Dados vazados";
+                    const dataContent = document.createElement("span");
+                    dataContent.className = "data-tooltip-content";
+                    dataContent.textContent = breach.data_classes.length
+                        ? breach.data_classes.join(", ")
+                        : "Tipos de dados não informados";
+                    dataTooltip.append(dataTrigger, dataContent);
+                    metadata.append(document.createTextNode("|"), dataTooltip);
+                }
+                metadata.append(document.createTextNode("|"), source);
                 item.append(name, metadata);
+                if (!breach.details_available) {
+                    const detailsError = document.createElement("p");
+                    detailsError.className = "breach-meta";
+                    detailsError.textContent = "Não foi possível carregar os detalhes deste incidente.";
+                    item.appendChild(detailsError);
+                }
                 breachesList.appendChild(item);
             });
 
@@ -155,9 +174,12 @@ form.addEventListener("submit", async (event) => {
         }
         results.forEach((element) => element.classList.add("is-visible"));
         formStatus.className = "form-status";
+        const detailsUnavailable = payload.breaches.some((breach) => !breach.details_available);
         formStatus.textContent = payload.breaches.length === 0
             ? "Nenhuma exposição conhecida foi encontrada nas fontes consultadas para este e-mail. Isso não garante que não existam exposições em outras fontes."
-            : "Consulta concluída. Foram encontradas exposições associadas a este e-mail.";
+            : detailsUnavailable
+                ? "A busca encontrou incidentes, mas não foi possível carregar os detalhes."
+                : "Consulta concluída. Foram encontradas exposições associadas a este e-mail.";
     } catch (error) {
         formStatus.className = "form-status error";
         formStatus.textContent = error.message;

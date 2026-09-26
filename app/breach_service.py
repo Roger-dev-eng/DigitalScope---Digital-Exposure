@@ -55,29 +55,33 @@ class BreachService:
         raw_names = payload.get("breaches", [])
         breach_names = raw_names[0] if len(raw_names) == 1 and isinstance(raw_names[0], list) else raw_names
 
-        try:
-            analytics_response = httpx.get(
-                f"https://api.xposedornot.com/v1/breach-analytics?email={email}",
-                headers={"user-agent": "DigitalScope/0.1", "accept": "application/json"},
-                timeout=10.0,
-            )
-            analytics_response.raise_for_status()
-        except httpx.RequestError as error:
-            raise BreachProviderError("O provider de vazamentos não está disponível.") from error
-        except httpx.HTTPError as error:
-            raise BreachProviderError("O provider de vazamentos recusou a consulta.") from error
-
-        metrics = analytics_response.json().get("BreachMetrics", {})
-        data_classes = self._extract_data_classes(metrics.get("xposed_data", []))
-        yearwise_details = metrics.get("yearwise_details", [{}])
-        year_counts = yearwise_details[0] if yearwise_details and isinstance(yearwise_details[0], dict) else {}
-        years = [year.removeprefix("y") for year, count in sorted(year_counts.items()) if count]
-        if not years:
-            reported_period = "Data não informada"
-        elif years[0] == years[-1]:
-            reported_period = years[0]
-        else:
-            reported_period = f"{years[0]}–{years[-1]}"
+        data_classes: list[str] = []
+        reported_period = "Detalhes indisponíveis"
+        details_available = False
+        if breach_names:
+            try:
+                analytics_response = httpx.get(
+                    "https://api.xposedornot.com/v1/breach-analytics",
+                    params={"email": email},
+                    headers={"user-agent": "DigitalScope/0.1", "accept": "application/json"},
+                    timeout=10.0,
+                )
+                analytics_response.raise_for_status()
+                metrics = analytics_response.json().get("BreachMetrics", {})
+                data_classes = self._extract_data_classes(metrics.get("xposed_data", []))
+                yearwise_details = metrics.get("yearwise_details", [{}])
+                year_counts = yearwise_details[0] if yearwise_details and isinstance(yearwise_details[0], dict) else {}
+                years = [year.removeprefix("y") for year, count in sorted(year_counts.items()) if count]
+                if not years:
+                    reported_period = "Data não informada"
+                elif years[0] == years[-1]:
+                    reported_period = years[0]
+                else:
+                    reported_period = f"{years[0]}–{years[-1]}"
+                details_available = True
+            except (httpx.RequestError, httpx.HTTPError, ValueError, TypeError, AttributeError):
+                # Preserve breach names from the successful primary lookup.
+                pass
 
         return [
             {
@@ -85,6 +89,7 @@ class BreachService:
                 "date": reported_period,
                 "data_classes": data_classes,
                 "source": "XposedOrNot",
+                "details_available": details_available,
             }
             for name in breach_names
         ]
@@ -138,6 +143,7 @@ def normalize_breach(raw_breach: dict[str, Any]) -> dict[str, Any]:
         "date": raw_breach.get("date"),
         "data_classes": normalize_data_classes(raw_breach.get("data_classes")),
         "source": str(raw_breach.get("source", "unknown")).strip() or "unknown",
+        "details_available": raw_breach.get("details_available", True),
     }
 
 

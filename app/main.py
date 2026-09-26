@@ -16,6 +16,7 @@ class Breach(BaseModel):
     date: str | None = None
     data_classes: list[str] = Field(default_factory=list)
     source: str = "unknown"
+    details_available: bool = True
 
 
 class ExposureAlert(BaseModel):
@@ -189,6 +190,7 @@ def create_app(breach_provider: Callable[[str], list[dict[str, Any]]] | None = N
                     date=breach.get("date"),
                     data_classes=breach.get("data_classes", []),
                     source=breach.get("source", "unknown"),
+                    details_available=breach.get("details_available", True),
                 )
                 for breach in breaches
             ],
